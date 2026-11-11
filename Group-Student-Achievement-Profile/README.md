@@ -1,6 +1,6 @@
 # Group-Student-Achievement-Profile
 
-A lightweight student achievement and recommendation profile demo for Africa University. Students can record achievements, request recommendations, and share verified records; lecturers can endorse claims and prepare recommendation letters.
+A lightweight student achievement and recommendation profile demo for Credify. Students can record achievements, request recommendations, and share verified records; lecturers can endorse claims and prepare recommendation letters.
 
 ## Run
 

@@ -9,6 +9,24 @@ const purposes=['Master’s scholarship','Employment reference','Internship appl
 const stepNames={requested:'Requested',drafting:'In progress',sent:'Sent'};
 const icon={verified:'✓',sent:'✓',pending:'…',requested:'…',rejected:'✕',declined:'✕',drafting:'✎'};
 const label={verified:'Verified',pending:'Awaiting endorsement',rejected:'Not endorsed',requested:'Requested',drafting:'In progress',sent:'Sent',declined:'Declined'};
+const uiIcons={
+ach:'<path d="M5 3.5h14v17H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+add:'<path d="M12 5v14M5 12h14"/>',
+req:'<path d="M7 3.5h10v17H7z"/><path d="M9.5 8h5M9.5 12h5M9.5 16h3"/>',
+prof:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+res:'<path d="M4 19.5h16M6.5 16V10m5.5 6V5m5.5 11v-4"/>',
+priv:'<path d="M12 3 19 6v5c0 4.5-3 7.5-7 10-4-2.5-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/>',
+act:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+requests:'<path d="M4 5h16v12H8l-4 3z"/><path d="M8 9h8M8 13h5"/>',
+endorse:'<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
+in:'<path d="M4 12h16M14 6l6 6-6 6"/>',
+up:'<path d="M12 5v14M5 12h14"/>',
+all:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+verified:'<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
+pending:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+rejected:'<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>'
+};
+const uiIcon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${uiIcons[name]||uiIcons.ach}</svg>`;
 function D(n){const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
 let S={users:[],ach:[],reqs:[],log:[],drafts:{},skills:[],results:[],views:[]};
 const nameOf=id=>(S.users.find(u=>u.id===id)||{}).name||'';
@@ -33,7 +51,7 @@ async function act(p,ok){const{error}=await p;if(error){fail(error);return false
 let dt,pd=null;
 function queueDraft(id,body){pd={id,body};clearTimeout(dt);dt=setTimeout(flushDraft,800)}
 async function flushDraft(){clearTimeout(dt);if(!pd)return;const d=pd;pd=null;const{error}=await sb.from('letters').upsert({request_id:d.id,body:d.body,updated_at:new Date().toISOString()});if(error)say('Draft couldn’t be saved: '+error.message)}
-let ready=false,pub=null,me=null,stab='ach',auth='in',authErr='',authVal={},ltab='requests',rf='all',sf='all',open=null,modal=null;
+let ready=false,pub=null,me=null,stab='ach',auth='in',authErr='',authVal={},ltab='requests',rf='all',sf='all',open=null,modal=null,mobileNavOpen=false;
 const user=()=>S.users.find(u=>u.id===me);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=d=>new Date(d+'T00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
@@ -65,7 +83,7 @@ const fl=[['all','All'],['verified','Verified'],['pending','Awaiting'],['rejecte
 const itm=a=>achItem(a,a.status==='pending'?`<div class="actions"><button class="btn" data-act="withdraw" data-id="${a.id}">Withdraw claim</button></div>`:a.status==='rejected'?`<div class="actions"><button class="btn primary" data-act="resubmit" data-id="${a.id}">Resubmit for endorsement</button><button class="btn" data-act="withdraw" data-id="${a.id}">Remove</button></div>`:a.status==='verified'?`<div class="actions"><button class="btn" data-act="tshare" data-id="${a.id}" data-v="${a.shared?0:1}">${a.shared?'Hide from shared profile':'Include in shared profile'}</button></div>`:'');
 const groups=cats.map(cn=>[cn,shown.filter(a=>a.cat===cn).sort((x,y)=>x.date<y.date?1:-1)]).filter(g=>g[1].length);
 body=`<section class="panel hl" aria-labelledby="h-a"><h2 id="h-a">My achievements</h2>
-<div class="tabs" role="tablist" aria-label="Filter achievements">${fl.map(f=>`<button role="tab" aria-selected="${sf===f[0]}" data-act="sf" data-v="${f[0]}">${f[1]}</button>`).join('')}</div>
+<div class="tabs" role="tablist" aria-label="Filter achievements">${fl.map(f=>`<button role="tab" aria-selected="${sf===f[0]}" data-act="sf" data-v="${f[0]}">${uiIcon(f[0])}<span>${f[1]}</span></button>`).join('')}</div>
 ${groups.map(g=>`<h3 class="cat">${g[0]}<span class="count">${g[1].length}</span></h3><ul class="list timeline">${g[1].map(itm).join('')}</ul>`).join('')||(mine.length?'<div class="empty">Nothing matches this filter.</div>':'<div class="empty"><p>No achievements yet. Record your first one so a lecturer can endorse it.</p><button class="btn main" data-act="snav" data-v="add">Add an achievement</button></div>')}</section>`}
 else if(stab==='add'){
 body=`<section class="panel" aria-labelledby="h-add"><h2 id="h-add">Add an achievement</h2><p class="sub">The lecturer you choose must endorse it before it counts as verified, and only that lecturer sees it until then. You can withdraw a claim but not edit it.</p>
@@ -102,7 +120,7 @@ else{body=`<section class="panel" aria-labelledby="h-f"><h2 id="h-f">Recent acti
 return head+body}
 
 function draftFor(r){const vs=verified(r.sid);
-return `Dear Selection Committee,\n\nI am pleased to support ${names[r.sid]}’s application for a ${r.purpose.toLowerCase()}.\n\nThe university’s verified record shows the following:\n${vs.map(a=>`- ${a.title} (${a.cat}, ${fmt(a.date)})`).join('\n')||'- No verified achievements yet.'}\n\n[Add your own observations of ${names[r.sid].split(' ')[0]}’s work and conduct here.]\n\nYours faithfully,\n${user().name}\nDepartment of AI, Software Engineering and Computer Science\nAfrica University`}
+return `Dear Selection Committee,\n\nI am pleased to support ${names[r.sid]}’s application for a ${r.purpose.toLowerCase()}.\n\nThe university’s verified record shows the following:\n${vs.map(a=>`- ${a.title} (${a.cat}, ${fmt(a.date)})`).join('\n')||'- No verified achievements yet.'}\n\n[Add your own observations of ${names[r.sid].split(' ')[0]}’s work and conduct here.]\n\nYours faithfully,\n${user().name}\nDepartment of AI, Software Engineering and Computer Science\nCredify`}
 
 function lecturer(){
 const RQ=S.reqs.filter(r=>r.lid===me),pend=S.ach.filter(a=>a.status==='pending'&&a.lid===me),openR=RQ.filter(r=>r.status==='requested'||r.status==='drafting');
@@ -127,7 +145,7 @@ ${body}`}
 
 function modalHTML(){const m=modal;
 if(m.type==='share'){const vs=verified(me).filter(a=>a.shared);
-return `<h2>Shared profile preview</h2><p class="sub">This is what an employer sees when you share your link.</p>`+(user().share?`<div class="panel"><h3 style="margin:0">${names[me]}</h3><p class="meta">BSc Software Engineering, Africa University</p><ul class="list">${vs.map(a=>`<li class="item"><h3>${esc(a.title)}</h3><p class="meta">${esc(a.cat)} · ${fmt(a.date)} · Verified by ${esc(a.by)}</p></li>`).join('')||'<li class="empty">No verified achievements yet.</li>'}</ul></div><p class="meta">${shareUrl(me)}</p><div class="actions"><button class="btn primary" data-act="copylink">Copy link</button><button class="btn" data-act="mclose">Close</button></div>`:`<p class="empty">Sharing is off, so employers can’t see anything. Turn it on under Privacy and sharing.</p><div class="actions"><button class="btn" data-act="mclose">Close</button></div>`)}
+return `<h2>Shared profile preview</h2><p class="sub">This is what an employer sees when you share your link.</p>`+(user().share?`<div class="panel"><h3 style="margin:0">${names[me]}</h3><p class="meta">BSc Software Engineering, Credify</p><ul class="list">${vs.map(a=>`<li class="item"><h3>${esc(a.title)}</h3><p class="meta">${esc(a.cat)} · ${fmt(a.date)} · Verified by ${esc(a.by)}</p></li>`).join('')||'<li class="empty">No verified achievements yet.</li>'}</ul></div><p class="meta">${shareUrl(me)}</p><div class="actions"><button class="btn primary" data-act="copylink">Copy link</button><button class="btn" data-act="mclose">Close</button></div>`:`<p class="empty">Sharing is off, so employers can’t see anything. Turn it on under Privacy and sharing.</p><div class="actions"><button class="btn" data-act="mclose">Close</button></div>`)}
 if(m.type==='letter'){const r=S.reqs.find(x=>x.id===m.id);return `<h2>Recommendation letter</h2><p class="sub">From ${esc(names[r.lid])}, for ${esc(r.purpose.toLowerCase())}.</p><pre class="note" style="white-space:pre-wrap;font:inherit">${esc(S.drafts[m.id]||'')}</pre><div class="actions"><button class="btn main" data-act="pdfletter" data-id="${m.id}">Download PDF</button><button class="btn" data-act="copyletter" data-id="${m.id}">Copy</button><button class="btn" data-act="printletter" data-id="${m.id}">Print</button><button class="btn" data-act="mclose">Close</button></div>`}
 const req=m.type==='declineR',a=(req?S.reqs:S.ach).find(x=>x.id===m.id),must=m.type!=='endorse';
 const title=m.type==='endorse'?`Endorse “${esc(a.title)}”`:req?`Decline request from ${names[a.sid]}`:`Decline “${esc(a.title)}”`;
@@ -136,14 +154,30 @@ return `<h2>${title}</h2><form id="mForm"><label for="note" style="margin-top:0"
 const dlg=document.createElement('dialog');dlg.id='dlg';document.body.appendChild(dlg);
 dlg.addEventListener('close',()=>{modal=null});
 dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});
+let revealObserver;
+function initScrollReveal(){
+revealObserver?.disconnect();
+if(!('IntersectionObserver'in window)||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+const targets=document.querySelectorAll('#app .panel,#app h1,#app h2,#app h3,#app p,#app .tabs,#app .stat,#app .item,#app .empty');
+targets.forEach(el=>el.classList.add('scroll-reveal'));
+revealObserver=new IntersectionObserver(entries=>entries.forEach(entry=>entry.target.classList.toggle('is-visible',entry.isIntersecting)),{threshold:0.08,rootMargin:'0px 0px -24px 0px'});
+targets.forEach(el=>revealObserver.observe(el))}
 function render(){const u=user();
 document.getElementById('who').innerHTML=u?`<span><b>${esc(u.name)}</b> · ${u.role==='lecturer'?'Lecturer':'Student'}</span><button class="btn" data-act="logout" style="min-height:40px;padding:.3rem .9rem">Sign out</button>`:'';
-document.getElementById('subnav').innerHTML=u?navHTML(u):'';
+const mobileNav=document.getElementById('mobileNavToggle');
+mobileNav.hidden=!u;
+mobileNav.setAttribute('aria-expanded',String(mobileNavOpen));
+mobileNav.setAttribute('aria-label',mobileNavOpen?'Close navigation menu':'Open navigation menu');
+const subnav=document.getElementById('subnav');
+subnav.innerHTML=u?navHTML(u):'';
+subnav.classList.toggle('mobile-open',mobileNavOpen&&Boolean(u));
 document.getElementById('app').innerHTML=!ready?'<p class="sub">Loading…</p>':pub?publicHTML():!u?loginPage():u.role==='student'?student():lecturer();
+initScrollReveal();
 if(u&&modal){dlg.innerHTML=modalHTML();if(!dlg.open)dlg.showModal()}else if(dlg.open)dlg.close()}
 
 document.addEventListener('click',async e=>{
 const b=e.target.closest('[data-act]');if(!b||b.tagName==='SELECT')return;const a=b.dataset.act,id=+b.dataset.id;
+if(a==='mobilenav'){mobileNavOpen=!mobileNavOpen;render();return}
 const rq=()=>S.reqs.find(x=>x.id===id),role=user()?.role;
 const LA=['ltab','open','close','sent','regen','endorse','declineA','declineR','copy','release'],SA=['snav','sf','withdraw','resubmit','cancelreq','share','preview','viewletter','pdfletter','copyletter','printletter','tshare','newlink','delskill','cv','copylink','copysum','print'];
 if(!role&&a!=='auth')return;
@@ -154,8 +188,8 @@ if(a==='auth'){auth=b.dataset.v;authErr=''}
 else if(a==='logout'){await sb.auth.signOut();resetUI();say('Signed out')}
 else if(a==='share'){const on=b.checked;await act(sb.from('profiles').update({share_enabled:on}).eq('id',me),on?'Sharing turned on':'Sharing turned off')}
 else if(a==='sf')sf=b.dataset.v;
-else if(a==='snav')stab=b.dataset.v;
-else if(a==='ltab'){ltab=b.dataset.v;open=null}
+else if(a==='snav'){stab=b.dataset.v;mobileNavOpen=false}
+else if(a==='ltab'){ltab=b.dataset.v;open=null;mobileNavOpen=false}
 else if(a==='open'){open=id;if(rq().status==='requested')await act(sb.from('recommendation_requests').update({status:'drafting'}).eq('id',id))}
 else if(a==='close')open=null;
 else if(a==='withdraw')await act(sb.from('achievements').delete().eq('id',id),'Claim removed');
@@ -173,7 +207,7 @@ else if(a==='copyletter'){copy(S.drafts[id]||'');return}
 else if(a==='printletter'){const w=window.open('','_blank');if(!w){say('Allow pop-ups to print');return}w.document.write('<!doctype html><meta charset="utf-8"><title>Recommendation letter</title><pre style="font:16px/1.6 Georgia,serif;white-space:pre-wrap;max-width:700px;margin:2rem auto">'+esc(S.drafts[id]||'')+'</pre>');w.document.close();w.print();return}
 else if(a==='preview')modal={type:'share'};
 else if(a==='copylink'){copy(shareUrl());return}
-else if(a==='copysum'){copy(`${names[me]}, BSc Software Engineering, Africa University\nVerified achievements:\n`+(verified(me).map(x=>`- ${x.title} (${x.cat}, ${fmt(x.date)}), verified by ${x.by}`).join('\n')||'- None yet'));return}
+else if(a==='copysum'){copy(`${names[me]}, BSc Software Engineering, Credify\nVerified achievements:\n`+(verified(me).map(x=>`- ${x.title} (${x.cat}, ${fmt(x.date)}), verified by ${x.by}`).join('\n')||'- None yet'));return}
 else if(a==='print'){try{window.print()}catch(_){say('Printing isn’t available here')}return}
 else if(a==='copy'){copy(document.getElementById('dr').value);return}
 else if(a==='regen'){S.drafts[id]=draftFor(rq());queueDraft(id,S.drafts[id]);await flushDraft();say('Draft reset to the verified record')}
@@ -240,12 +274,12 @@ if(!data.session){authErr='Account created, but email confirmation is switched o
 await enter(data.user.id)}
 function publicHTML(){const d=pub.data;
 if(!d)return `<div class="authwrap"><section class="panel"><h2>Profile not available</h2><p class="sub">This link is switched off or doesn’t exist.</p></section></div>`;
-return `<section class="panel hl" aria-labelledby="h-pub"><h1 id="h-pub">${esc(d.name)}</h1><p class="meta">Verified achievements, Africa University</p><ul class="list">${(d.achievements||[]).map(a=>`<li class="item"><h3>${esc(a.title)}</h3><p class="meta">${esc(a.category)} · ${fmt(a.date)} · Verified by ${esc(a.verified_by||'the university')}</p></li>`).join('')||'<li class="empty">No verified achievements yet.</li>'}</ul>${(d.skills||[]).length?`<h3 class="cat">Skills</h3><ul class="list">${d.skills.map(x=>`<li class="item">${esc(x.name)} · ${esc(x.kind)}${x.level?' · '+esc(x.level):''}</li>`).join('')}</ul>`:''}</section>`}
+return `<section class="panel hl" aria-labelledby="h-pub"><h1 id="h-pub">${esc(d.name)}</h1><p class="meta">Verified achievements, Credify</p><ul class="list">${(d.achievements||[]).map(a=>`<li class="item"><h3>${esc(a.title)}</h3><p class="meta">${esc(a.category)} · ${fmt(a.date)} · Verified by ${esc(a.verified_by||'the university')}</p></li>`).join('')||'<li class="empty">No verified achievements yet.</li>'}</ul>${(d.skills||[]).length?`<h3 class="cat">Skills</h3><ul class="list">${d.skills.map(x=>`<li class="item">${esc(x.name)} · ${esc(x.kind)}${x.level?' · '+esc(x.level):''}</li>`).join('')}</ul>`:''}</section>`}
 function loginPage(){const up=auth==='up',v=authVal;
-return `<div class="authwrap"><div class="hero"><div class="mark" aria-hidden="true">AU</div><h1>Keep a verified record of your university achievements</h1><p class="sub">Students record what they’ve done. Lecturers endorse it and write recommendations from the evidence.</p></div>
+return `<div class="authwrap"><div class="hero"><div class="mark" aria-hidden="true">C</div><h1>Keep a verified record of your university achievements</h1><p class="sub">Students record what they’ve done. Lecturers endorse it and write recommendations from the evidence.</p></div>
 <section class="panel hl" aria-labelledby="h-au"><h2 id="h-au">${up?'Create a student account':'Sign in'}</h2>
 <p class="sub">${up?'Lecturer accounts are set up by the university.':'Students and lecturers sign in here. You’ll see the view for your role.'}</p>
-<div class="tabs" role="tablist"><button role="tab" aria-selected="${!up}" data-act="auth" data-v="in">Sign in</button><button role="tab" aria-selected="${up}" data-act="auth" data-v="up">Create student account</button></div>
+<div class="tabs" role="tablist"><button role="tab" aria-selected="${!up}" data-act="auth" data-v="in">${uiIcon('in')}<span>Sign in</span></button><button role="tab" aria-selected="${up}" data-act="auth" data-v="up">${uiIcon('up')}<span>Create student account</span></button></div>
 ${authErr?`<p class="note" role="alert" style="border-left-color:var(--bad);color:var(--bad)"><b>${esc(authErr)}</b></p>`:''}
 ${up?`<form id="regForm"><label for="rn">Full name</label><input id="rn" name="name" type="text" required maxlength="80" autocomplete="name" value="${esc(v.name)}">
 <label for="rs">Student ID (6 digits)</label><input id="rs" name="sid" type="text" required inputmode="numeric" maxlength="6" value="${esc(v.sid)}">
@@ -263,15 +297,15 @@ const{data:{session}}=await sb.auth.getSession();ready=true;
 if(session)await enter(session.user.id,true);else render()})();
 
 function navHTML(u){const st=u.role==='student';
-const items=st?[['ach','Achievements'],['add','Add achievement'],['req','Request recommendation'],['prof','Profile and CV'],['res','Results'],['priv','Privacy'],['act','Activity']]:[['requests',`Requests (${S.reqs.filter(r=>r.lid===me).length})`],['endorse',`To endorse (${S.ach.filter(a=>a.status==='pending'&&a.lid===me).length})`],['act','Activity']];
+const items=st?[['ach','Achievements','ach'],['add','Add achievement','add'],['req','Recommendations','req'],['prof','Profile and CV','prof'],['res','Results','res'],['priv','Privacy','priv'],['act','Activity','act']]:[['requests',`Requests (${S.reqs.filter(r=>r.lid===me).length})`,'requests'],['endorse',`To endorse (${S.ach.filter(a=>a.status==='pending'&&a.lid===me).length})`,'endorse'],['act','Activity','act']];
 const cur=st?stab:ltab,act=st?'snav':'ltab';
-return `<div class="subbar" role="tablist" aria-label="Sections">${items.map(i=>`<button role="tab" aria-selected="${cur===i[0]}" data-act="${act}" data-v="${i[0]}">${i[1]}</button>`).join('')}</div>`}
+return `<div class="subbar" role="tablist" aria-label="Sections">${items.map(i=>`<button role="tab" aria-selected="${cur===i[0]}" data-act="${act}" data-v="${i[0]}">${uiIcon(i[2])}<span>${i[1]}</span></button>`).join('')}</div>`}
 
 function ini(n){return n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}
 
 function openCV(){const u=user(),vs=verified(me).filter(a=>a.shared!==false||true);
 const w=window.open('','_blank');if(!w){say('Allow pop-ups to open your CV');return}
-w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(u.name)} CV</title><body style="font:16px/1.5 system-ui,Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem"><h1 style="margin:0">${esc(u.name)}</h1><p>BSc Software Engineering, Africa University · Student ID ${esc(u.login)}${u.phone?' · '+esc(u.phone):''}${u.backup?' · '+esc(u.backup):''}</p><h2>Verified achievements</h2><ul>${vs.map(a=>`<li><b>${esc(a.title)}</b> (${esc(a.cat)}, ${fmt(a.date)}). Verified by ${esc(a.by)}</li>`).join('')||'<li>None yet</li>'}</ul><h2>Skills</h2><ul>${S.skills.map(x=>`<li>${esc(x.name)} (${x.kind}${x.level?', '+x.level:''})</li>`).join('')||'<li>None listed</li>'}</ul><p><button onclick="print()">Print or save as PDF</button></p>`);w.document.close()}
+w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(u.name)} CV</title><body style="font:16px/1.5 system-ui,Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem"><h1 style="margin:0">${esc(u.name)}</h1><p>BSc Software Engineering, Credify · Student ID ${esc(u.login)}${u.phone?' · '+esc(u.phone):''}${u.backup?' · '+esc(u.backup):''}</p><h2>Verified achievements</h2><ul>${vs.map(a=>`<li><b>${esc(a.title)}</b> (${esc(a.cat)}, ${fmt(a.date)}). Verified by ${esc(a.by)}</li>`).join('')||'<li>None yet</li>'}</ul><h2>Skills</h2><ul>${S.skills.map(x=>`<li>${esc(x.name)} (${x.kind}${x.level?', '+x.level:''})</li>`).join('')||'<li>None listed</li>'}</ul><p><button onclick="print()">Print or save as PDF</button></p>`);w.document.close()}
 
 function letterPDF(id){const r=S.reqs.find(x=>x.id===id),{jsPDF}=window.jspdf,d=new jsPDF({unit:'pt',format:'a4'});
 const W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight(),m=64;let y=m;
