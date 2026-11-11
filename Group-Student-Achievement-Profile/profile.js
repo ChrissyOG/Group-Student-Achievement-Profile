@@ -17,7 +17,7 @@ const [p,a,r,l,ac,sk,rs,pv]=await Promise.all([
 sb.from('profiles').select('id,full_name,student_id,role,share_enabled,share_token,phone,backup_email,share_expires_at'),
 sb.from('achievements').select('*').order('achieved_on',{ascending:false}),
 sb.from('recommendation_requests').select('*'),
-sb.from('letters').select('request_id,body'),
+sb.from('letters').select('request_id,body,released'),
 sb.from('activity').select('student_text,lecturer_text,created_at').order('created_at',{ascending:false}).limit(40),
 sb.from('skills').select('*').order('kind'),sb.from('results').select('*').order('semester'),sb.from('profile_views').select('viewed_at').order('viewed_at',{ascending:false}).limit(20)]);
 const bad=[p,a,r,l,ac,sk,rs,pv].find(x=>x.error);if(bad)throw bad.error;
@@ -25,7 +25,7 @@ S.users=p.data.map(x=>({id:x.id,role:x.role,name:x.full_name,login:x.student_id|
 S.ach=a.data.map(x=>({id:x.id,sid:x.student_id,cat:x.category,title:x.title,date:x.achieved_on,lid:x.lecturer_id,lvl:x.significance,file:x.evidence_path,shared:x.shared,ev:x.evidence||'',status:x.status,by:nameOf(x.endorsed_by),note:x.note||''}));
 S.reqs=r.data.map(x=>({id:x.id,sid:x.student_id,lid:x.lecturer_id,purpose:x.purpose,due:x.due_on,status:x.status,note:x.decline_reason||'',kp:x.key_points||''}));
 S.drafts=Object.fromEntries(l.data.map(x=>[x.request_id,x.body]));
-S.skills=sk.data;S.results=rs.data;S.views=pv.data.map(x=>x.viewed_at);
+S.rel=new Set(l.data.filter(x=>x.released).map(x=>x.request_id));S.skills=sk.data;S.results=rs.data;S.views=pv.data.map(x=>x.viewed_at);
 const lec=user()?.role==='lecturer';
 S.log=ac.data.map(x=>({t:lec?x.lecturer_text:x.student_text,at:x.created_at})).filter(x=>x.t)}
 const fail=e=>say(e?.message?'Something went wrong: '+e.message:'Something went wrong. Try again.');
@@ -84,7 +84,7 @@ body=`<section class="panel" aria-labelledby="h-r"><h2 id="h-r">Request a recomm
 <label for="kp">Key points you’d like included (optional)</label><textarea id="kp" name="kp" maxlength="500" style="min-height:90px"></textarea>
 <label for="rd">Needed by</label><input id="rd" name="due" type="date" required min="${D(0)}">
 <p></p><button class="btn main" type="submit">Send request</button></form></section>
-<section class="panel" style="margin-top:1.5rem" aria-labelledby="h-mr"><h2 id="h-mr">My requests</h2><ul class="list">${myReqs.map(r=>`<li class="item"><div class="row"><h3>${esc(r.purpose)}</h3>${badge(r.status)}</div><p class="meta">${dueText(r)} · Lecturer: ${esc(names[r.lid])}</p>${r.status==='declined'?`<p class="note"><b>Reason:</b> ${esc(r.note)}</p>`:`<ol class="stepper" aria-label="Progress">${Object.keys(stepNames).map((k,i)=>{const cur=Object.keys(stepNames).indexOf(r.status),st=r.status==='sent'||i<cur?'done':i===cur?'now':'';return `<li class="${st}"${st==='now'?' aria-current="step"':''}>${stepNames[k]}</li>`}).join('')}</ol>`}${r.status==='sent'?'':`<div class="actions" style="margin-top:.6rem"><button class="btn" data-act="cancelreq" data-id="${r.id}">${r.status==='declined'?'Remove':'Cancel request'}</button></div>`}</li>`).join('')||'<li class="empty">No requests yet. Use the form above to ask a lecturer.</li>'}</ul></section>`}
+<section class="panel" style="margin-top:1.5rem" aria-labelledby="h-mr"><h2 id="h-mr">My requests</h2><ul class="list">${myReqs.map(r=>`<li class="item"><div class="row"><h3>${esc(r.purpose)}</h3>${badge(r.status)}</div><p class="meta">${dueText(r)} · Lecturer: ${esc(names[r.lid])}</p>${r.status==='declined'?`<p class="note"><b>Reason:</b> ${esc(r.note)}</p>`:`<ol class="stepper" aria-label="Progress">${Object.keys(stepNames).map((k,i)=>{const cur=Object.keys(stepNames).indexOf(r.status),st=r.status==='sent'||i<cur?'done':i===cur?'now':'';return `<li class="${st}"${st==='now'?' aria-current="step"':''}>${stepNames[k]}</li>`}).join('')}</ol>`}${r.status==='sent'?(S.rel?.has(r.id)?`<div class="actions" style="margin-top:.6rem"><button class="btn primary" data-act="viewletter" data-id="${r.id}">View letter</button></div>`:'<p class="meta" style="margin-top:.6rem">The lecturer sent this letter directly and didn’t release a copy to you.</p>'):`<div class="actions" style="margin-top:.6rem"><button class="btn" data-act="cancelreq" data-id="${r.id}">${r.status==='declined'?'Remove':'Cancel request'}</button></div>`}</li>`).join('')||'<li class="empty">No requests yet. Use the form above to ask a lecturer.</li>'}</ul></section>`}
 else if(stab==='prof'){
 body=`<section class="panel" aria-labelledby="h-pf"><h2 id="h-pf">Contact details</h2><p class="sub">Your name, student ID and programme are locked. You can update how people reach you.</p>
 <form id="contactForm"><label for="pn">Phone</label><input id="pn" name="phone" type="text" maxlength="30" value="${esc(u.phone)}"><label for="be">Personal backup email (for use after graduation)</label><input id="be" name="backup" type="text" maxlength="120" value="${esc(u.backup)}"><p></p><button class="btn main" type="submit">Save contact details</button></form></section>
@@ -117,8 +117,8 @@ if(sel){const sa=S.ach.filter(a=>a.sid===sel.sid&&a.status==='verified'),ro=sel.
 body+=`<section class="panel hl" style="margin-top:1.5rem" aria-labelledby="h-d"><div class="row"><h2 id="h-d" style="border:0;margin:0;padding:0">${names[sel.sid]}: ${esc(sel.purpose)}</h2><button class="btn" data-act="close">Close</button></div>
 <div class="grid" style="margin-top:1rem"><div>${sel.kp?`<p class="note"><b>Student’s key points:</b> ${esc(sel.kp)}</p>`:''}<h3 style="margin-top:0">Record</h3><ul class="list">${sa.map(a=>achItem(a)).join('')}</ul></div>
 <div><h3 style="margin-top:0">Draft letter</h3><label for="dr" style="position:absolute;left:-9999px">Letter text</label><textarea id="dr" class="draft" ${ro?'readonly':''}>${esc(S.drafts[sel.id]||draftFor(sel))}</textarea>
-<div class="actions" style="margin-top:.6rem"><button class="btn" data-act="copy">Copy text</button>${ro?'':`<button class="btn" data-act="regen" data-id="${sel.id}">Reset draft</button><button class="btn danger" data-act="declineR" data-id="${sel.id}">Decline request</button><button class="btn main" data-act="sent" data-id="${sel.id}">Mark as sent</button>`}</div>
-<p class="meta" style="margin-top:.6rem">${sel.status==='declined'?'You declined this request.':'Only verified achievements are added to the draft. Edits save automatically.'}</p></div></div></section>`}
+${ro?'':`<div class="toggle"><input type="checkbox" id="rel"><label for="rel">Release a copy to the student when I mark it as sent</label></div>`}<div class="actions" style="margin-top:.6rem"><button class="btn" data-act="copy">Copy text</button>${sel.status==='sent'?`<button class="btn ${S.rel.has(sel.id)?'':'main'}" data-act="release" data-id="${sel.id}" data-v="${S.rel.has(sel.id)?0:1}">${S.rel.has(sel.id)?'Withdraw from student':'Release to student'}</button>`:''}${ro?'':`<button class="btn" data-act="regen" data-id="${sel.id}">Reset draft</button><button class="btn danger" data-act="declineR" data-id="${sel.id}">Decline request</button><button class="btn main" data-act="sent" data-id="${sel.id}">Mark as sent</button>`}</div>
+<p class="meta" style="margin-top:.6rem">${sel.status==='sent'?(S.rel.has(sel.id)?'You released a copy of this letter to the student.':'This letter was not released to the student.'):sel.status==='declined'?'You declined this request.':'Only verified achievements are added to the draft. Edits save automatically.'}</p></div></div></section>`}
 }else if(ltab==='endorse'){
 body=`<ul class="list">${pend.map(a=>achItem(a,`<p class="meta who"><span class="avatar sm" aria-hidden="true">${ini(names[a.sid])}</span><span><b>${names[a.sid]}</b> submitted this for endorsement.</span></p><div class="actions"><button class="btn primary" data-act="endorse" data-id="${a.id}">Endorse</button><button class="btn danger" data-act="declineA" data-id="${a.id}">Decline</button></div>`)).join('')||'<li class="empty">Nothing waiting. New claims from students appear here.</li>'}</ul>`}else{body=`<section class="panel" aria-labelledby="h-l"><h2 id="h-l">Recent activity</h2>${feedHTML(S.log.slice(0,10))}</section>`}
 return `<h1>Lecturer dashboard</h1><p class="sub">${esc(user().name)}, Software Engineering.</p>
@@ -128,6 +128,7 @@ ${body}`}
 function modalHTML(){const m=modal;
 if(m.type==='share'){const vs=verified(me).filter(a=>a.shared);
 return `<h2>Shared profile preview</h2><p class="sub">This is what an employer sees when you share your link.</p>`+(user().share?`<div class="panel"><h3 style="margin:0">${names[me]}</h3><p class="meta">BSc Software Engineering, Africa University</p><ul class="list">${vs.map(a=>`<li class="item"><h3>${esc(a.title)}</h3><p class="meta">${esc(a.cat)} · ${fmt(a.date)} · Verified by ${esc(a.by)}</p></li>`).join('')||'<li class="empty">No verified achievements yet.</li>'}</ul></div><p class="meta">${shareUrl(me)}</p><div class="actions"><button class="btn primary" data-act="copylink">Copy link</button><button class="btn" data-act="mclose">Close</button></div>`:`<p class="empty">Sharing is off, so employers can’t see anything. Turn it on under Privacy and sharing.</p><div class="actions"><button class="btn" data-act="mclose">Close</button></div>`)}
+if(m.type==='letter'){const r=S.reqs.find(x=>x.id===m.id);return `<h2>Recommendation letter</h2><p class="sub">From ${esc(names[r.lid])}, for ${esc(r.purpose.toLowerCase())}.</p><pre class="note" style="white-space:pre-wrap;font:inherit">${esc(S.drafts[m.id]||'')}</pre><div class="actions"><button class="btn main" data-act="pdfletter" data-id="${m.id}">Download PDF</button><button class="btn" data-act="copyletter" data-id="${m.id}">Copy</button><button class="btn" data-act="printletter" data-id="${m.id}">Print</button><button class="btn" data-act="mclose">Close</button></div>`}
 const req=m.type==='declineR',a=(req?S.reqs:S.ach).find(x=>x.id===m.id),must=m.type!=='endorse';
 const title=m.type==='endorse'?`Endorse “${esc(a.title)}”`:req?`Decline request from ${names[a.sid]}`:`Decline “${esc(a.title)}”`;
 return `<h2>${title}</h2><form id="mForm"><label for="note" style="margin-top:0">${must?'Reason for the student (required)':'Note for the student (optional)'}</label><textarea id="note" name="note" style="min-height:110px" maxlength="300" ${must?'required':''}></textarea><div class="actions" style="margin-top:.9rem"><button class="btn ${must?'danger':'main'}" type="submit">${m.type==='endorse'?'Confirm endorsement':'Confirm decline'}</button><button class="btn" type="button" data-act="mclose">Cancel</button></div></form>`}
@@ -144,10 +145,10 @@ if(u&&modal){dlg.innerHTML=modalHTML();if(!dlg.open)dlg.showModal()}else if(dlg.
 document.addEventListener('click',async e=>{
 const b=e.target.closest('[data-act]');if(!b||b.tagName==='SELECT')return;const a=b.dataset.act,id=+b.dataset.id;
 const rq=()=>S.reqs.find(x=>x.id===id),role=user()?.role;
-const LA=['ltab','open','close','sent','regen','endorse','declineA','declineR','copy'],SA=['snav','sf','withdraw','resubmit','cancelreq','share','preview','tshare','newlink','delskill','cv','copylink','copysum','print'];
+const LA=['ltab','open','close','sent','regen','endorse','declineA','declineR','copy','release'],SA=['snav','sf','withdraw','resubmit','cancelreq','share','preview','viewletter','pdfletter','copyletter','printletter','tshare','newlink','delskill','cv','copylink','copysum','print'];
 if(!role&&a!=='auth')return;
 if((LA.includes(a)&&role!=='lecturer')||(SA.includes(a)&&role!=='student'))return;
-if(['open','sent','regen','declineR'].includes(a)&&rq()?.lid!==me)return;
+if(['open','sent','regen','declineR','release'].includes(a)&&rq()?.lid!==me)return;
 try{await flushDraft();
 if(a==='auth'){auth=b.dataset.v;authErr=''}
 else if(a==='logout'){await sb.auth.signOut();resetUI();say('Signed out')}
@@ -165,6 +166,11 @@ else if(a==='newlink')await act(sb.from('profiles').update({share_token:crypto.r
 else if(a==='delskill')await act(sb.from('skills').delete().eq('id',id),'Skill removed');
 else if(a==='file'){const w=window.open('','_blank');const{data,error}=await sb.storage.from('evidence').createSignedUrl(b.dataset.v,120);if(error){w?.close();throw error}if(w)w.location=data.signedUrl;else say('Allow pop-ups to open the file');return}
 else if(a==='cv'){openCV();return}
+else if(a==='release')await act(sb.rpc('set_letter_released',{p_request:id,p_released:b.dataset.v==='1'}),b.dataset.v==='1'?'Letter released to the student':'Letter withdrawn from the student');
+else if(a==='viewletter')modal={type:'letter',id};
+else if(a==='pdfletter'){if(!window.jspdf){say('The PDF tool didn’t load. Check your connection and reload.');return}letterPDF(id);return}
+else if(a==='copyletter'){copy(S.drafts[id]||'');return}
+else if(a==='printletter'){const w=window.open('','_blank');if(!w){say('Allow pop-ups to print');return}w.document.write('<!doctype html><meta charset="utf-8"><title>Recommendation letter</title><pre style="font:16px/1.6 Georgia,serif;white-space:pre-wrap;max-width:700px;margin:2rem auto">'+esc(S.drafts[id]||'')+'</pre>');w.document.close();w.print();return}
 else if(a==='preview')modal={type:'share'};
 else if(a==='copylink'){copy(shareUrl());return}
 else if(a==='copysum'){copy(`${names[me]}, BSc Software Engineering, Africa University\nVerified achievements:\n`+(verified(me).map(x=>`- ${x.title} (${x.cat}, ${fmt(x.date)}), verified by ${x.by}`).join('\n')||'- None yet'));return}
@@ -172,7 +178,7 @@ else if(a==='print'){try{window.print()}catch(_){say('Printing isn’t available
 else if(a==='copy'){copy(document.getElementById('dr').value);return}
 else if(a==='regen'){S.drafts[id]=draftFor(rq());queueDraft(id,S.drafts[id]);await flushDraft();say('Draft reset to the verified record')}
 else if(a==='sent'){const body=document.getElementById('dr').value,now=new Date().toISOString();
-const{error}=await sb.from('letters').upsert({request_id:id,body,updated_at:now});if(error)throw error;
+const{error}=await sb.from('letters').upsert({request_id:id,body,released:!!document.getElementById('rel')?.checked,updated_at:now});if(error)throw error;
 await act(sb.from('recommendation_requests').update({status:'sent',sent_at:now}).eq('id',id),'Marked as sent. The student can see this.')}
 else if(a==='endorse')await act(sb.from('achievements').update({status:'verified',endorsed_by:me,note:null}).eq('id',id),'Endorsed “'+S.ach.find(x=>x.id===id)?.title+'”');
 else if(a==='declineA')modal={type:'declineA',id};
@@ -266,3 +272,9 @@ function ini(n){return n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase
 function openCV(){const u=user(),vs=verified(me).filter(a=>a.shared!==false||true);
 const w=window.open('','_blank');if(!w){say('Allow pop-ups to open your CV');return}
 w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(u.name)} CV</title><body style="font:16px/1.5 system-ui,Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem"><h1 style="margin:0">${esc(u.name)}</h1><p>BSc Software Engineering, Africa University · Student ID ${esc(u.login)}${u.phone?' · '+esc(u.phone):''}${u.backup?' · '+esc(u.backup):''}</p><h2>Verified achievements</h2><ul>${vs.map(a=>`<li><b>${esc(a.title)}</b> (${esc(a.cat)}, ${fmt(a.date)}). Verified by ${esc(a.by)}</li>`).join('')||'<li>None yet</li>'}</ul><h2>Skills</h2><ul>${S.skills.map(x=>`<li>${esc(x.name)} (${x.kind}${x.level?', '+x.level:''})</li>`).join('')||'<li>None listed</li>'}</ul><p><button onclick="print()">Print or save as PDF</button></p>`);w.document.close()}
+
+function letterPDF(id){const r=S.reqs.find(x=>x.id===id),{jsPDF}=window.jspdf,d=new jsPDF({unit:'pt',format:'a4'});
+const W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight(),m=64;let y=m;
+d.setFont('times','normal');d.setFontSize(12);
+for(const line of d.splitTextToSize(S.drafts[id]||'',W-2*m)){if(y>H-m){d.addPage();y=m}d.text(line,m,y);y+=17}
+d.save(('Recommendation letter - '+names[r.lid]).replace(/[^\w .-]/g,'')+'.pdf')}
