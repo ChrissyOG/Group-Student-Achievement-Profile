@@ -9,6 +9,8 @@ const purposes=['Master’s scholarship','Employment reference','Internship appl
 const stepNames={requested:'Requested',drafting:'In progress',sent:'Sent'};
 const icon={verified:'✓',sent:'✓',pending:'…',requested:'…',rejected:'✕',declined:'✕',drafting:'✎'};
 const label={verified:'Verified',pending:'Awaiting endorsement',rejected:'Not endorsed',requested:'Requested',drafting:'In progress',sent:'Sent',declined:'Declined'};
+const cvThemes=[['indigo','Indigo','#5145d2',[81,69,210]],['ocean','Ocean','#0c8096',[12,128,150]],['forest','Forest','#227852',[34,120,82]],['burgundy','Burgundy','#992d4b',[153,45,75]],['navy','Navy','#244a7c',[36,74,124]],['teal','Teal','#168c83',[22,140,131]],['emerald','Emerald','#16804a',[22,128,74]],['plum','Plum','#7546a8',[117,70,168]],['coral','Coral','#d45b4b',[212,91,75]],['amber','Amber','#b77913',[183,121,19]],['slate','Slate','#536579',[83,101,121]],['rose','Rose','#c04478',[192,68,120]]];
+const cvLayouts=[['modern','Modern','A bold header with a clean, spacious layout.'],['classic','Classic','A traditional, refined document style.'],['compact','Compact','A neat layout that fits more on each page.'],['executive','Executive','A polished profile with a focused accent banner.'],['sidebar','Sidebar','A two-column design with contact details in a side rail.'],['academic','Academic','A formal, centered layout suited to academic CVs.']];
 const uiIcons={
 ach:'<path d="M5 3.5h14v17H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
 add:'<path d="M12 5v14M5 12h14"/>',
@@ -51,7 +53,7 @@ async function act(p,ok){const{error}=await p;if(error){fail(error);return false
 let dt,pd=null;
 function queueDraft(id,body){pd={id,body};clearTimeout(dt);dt=setTimeout(flushDraft,800)}
 async function flushDraft(){clearTimeout(dt);if(!pd)return;const d=pd;pd=null;const{error}=await sb.from('letters').upsert({request_id:d.id,body:d.body,updated_at:new Date().toISOString()});if(error)say('Draft couldn’t be saved: '+error.message)}
-let ready=false,pub=null,me=null,stab='ach',auth='in',authErr='',authVal={},ltab='requests',rf='all',sf='all',open=null,modal=null,mobileNavOpen=false;
+let ready=false,pub=null,me=null,stab='ach',auth='in',authErr='',authVal={},ltab='requests',rf='all',sf='all',open=null,modal=null,mobileNavOpen=false,cvTemplate='modern',cvTheme='indigo';
 const user=()=>S.users.find(u=>u.id===me);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=d=>new Date(d+'T00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
@@ -108,7 +110,10 @@ body=`<section class="panel" aria-labelledby="h-pf"><h2 id="h-pf">Contact detail
 <form id="contactForm"><label for="pn">Phone</label><input id="pn" name="phone" type="text" maxlength="30" value="${esc(u.phone)}"><label for="be">Personal backup email (for use after graduation)</label><input id="be" name="backup" type="text" maxlength="120" value="${esc(u.backup)}"><p></p><button class="btn main" type="submit">Save contact details</button></form></section>
 <section class="panel" style="margin-top:1.5rem"><h2>Skills</h2><ul class="list">${S.skills.map(x=>`<li class="item"><div class="row"><span><b>${esc(x.name)}</b> · ${x.kind}${x.level?' · '+x.level:''}</span><button class="btn" data-act="delskill" data-id="${x.id}">Remove</button></div></li>`).join('')||'<li class="empty">No skills yet.</li>'}</ul>
 <form id="skillForm"><label for="sn">Skill</label><input id="sn" name="name" type="text" required maxlength="60"><label for="sk">Type</label><select id="sk" name="kind"><option>Technical</option><option>Language</option></select><label for="sl">Level</label><select id="sl" name="level"><option>Basic</option><option>Good</option><option>Fluent or expert</option></select><p></p><button class="btn primary" type="submit">Add skill</button></form></section>
-<section class="panel" style="margin-top:1.5rem"><h2>CV</h2><p class="sub">Builds a CV from your verified achievements and skills.</p><div class="actions"><button class="btn main" data-act="cv">Generate CV</button></div></section>`}
+<section class="panel" style="margin-top:1.5rem"><h2>CV</h2><p class="sub">Choose a layout and color theme for a PDF built from your verified achievements and skills.</p>
+<fieldset class="cv-template-fieldset"><legend>Choose a CV layout</legend><div class="cv-template-grid" style="--cv-preview-accent:${cvThemes.find(x=>x[0]===cvTheme)?.[2]||cvThemes[0][2]}">${cvLayouts.map(([id,title,desc])=>`<button type="button" class="cv-template ${cvTemplate===id?'selected':''}" data-act="cvtemplate" data-v="${id}" aria-pressed="${cvTemplate===id}"><span class="cv-preview ${id}" aria-hidden="true"><span class="cv-sheet"><span class="cv-sample-head"></span><span class="cv-sample-title"></span><span class="cv-sample-line"></span><span class="cv-sample-line short"></span><span class="cv-sample-section"></span><span class="cv-sample-line"></span><span class="cv-sample-line"></span><span class="cv-sample-section"></span><span class="cv-sample-line short"></span></span></span><span class="cv-template-copy"><b>${title}</b><span>${desc}</span></span></button>`).join('')}</div></fieldset>
+<fieldset class="cv-color-fieldset"><legend>Color theme <span>${cvThemes.find(x=>x[0]===cvTheme)?.[1]||'Indigo'}</span></legend><div class="cv-color-swatches" role="group" aria-label="CV color themes">${cvThemes.map(([id,name,hex])=>`<button type="button" class="cv-color-swatch ${cvTheme===id?'selected':''}" style="--swatch:${hex}" data-act="cvtheme" data-v="${id}" aria-label="${name} color theme" title="${name}" aria-pressed="${cvTheme===id}"></button>`).join('')}</div></fieldset>
+<div class="actions" style="margin-top:1rem"><button class="btn main" data-act="cv">Generate PDF</button></div></section>`}
 else if(stab==='res'){body=`<section class="panel" aria-labelledby="h-rs"><h2 id="h-rs">My results</h2><p class="sub">Read-only. Results are imported by the Academic Records Office.</p><ul class="list">${S.results.map(x=>`<li class="item"><div class="row"><span><b>${esc(x.course_code)}</b> ${esc(x.course_name)}<br><span class="meta">${esc(x.semester)}</span></span><b>${esc(x.grade)}</b></div></li>`).join('')||'<li class="empty">No results have been imported yet.</li>'}</ul></section>`}
 else if(stab==='priv'){
 body=`<section class="panel" aria-labelledby="h-p"><h2 id="h-p">Privacy and sharing</h2><div class="toggle"><input type="checkbox" id="sh" data-act="share" ${on?'checked':''}><label for="sh">Let employers and scholarship providers check my verified achievements with a link I share.</label></div>
@@ -179,7 +184,7 @@ document.addEventListener('click',async e=>{
 const b=e.target.closest('[data-act]');if(!b||b.tagName==='SELECT')return;const a=b.dataset.act,id=+b.dataset.id;
 if(a==='mobilenav'){mobileNavOpen=!mobileNavOpen;render();return}
 const rq=()=>S.reqs.find(x=>x.id===id),role=user()?.role;
-const LA=['ltab','open','close','sent','regen','endorse','declineA','declineR','copy','release'],SA=['snav','sf','withdraw','resubmit','cancelreq','share','preview','viewletter','pdfletter','copyletter','printletter','tshare','newlink','delskill','cv','copylink','copysum','print'];
+const LA=['ltab','open','close','sent','regen','endorse','declineA','declineR','copy','release'],SA=['snav','sf','withdraw','resubmit','cancelreq','share','preview','viewletter','pdfletter','copyletter','printletter','tshare','newlink','delskill','cv','cvtemplate','cvtheme','copylink','copysum','print'];
 if(!role&&a!=='auth')return;
 if((LA.includes(a)&&role!=='lecturer')||(SA.includes(a)&&role!=='student'))return;
 if(['open','sent','regen','declineR','release'].includes(a)&&rq()?.lid!==me)return;
@@ -188,6 +193,8 @@ if(a==='auth'){auth=b.dataset.v;authErr=''}
 else if(a==='logout'){await sb.auth.signOut();resetUI();say('Signed out')}
 else if(a==='share'){const on=b.checked;await act(sb.from('profiles').update({share_enabled:on}).eq('id',me),on?'Sharing turned on':'Sharing turned off')}
 else if(a==='sf')sf=b.dataset.v;
+else if(a==='cvtemplate')cvTemplate=b.dataset.v;
+else if(a==='cvtheme')cvTheme=b.dataset.v;
 else if(a==='snav'){stab=b.dataset.v;mobileNavOpen=false}
 else if(a==='ltab'){ltab=b.dataset.v;open=null;mobileNavOpen=false}
 else if(a==='open'){open=id;if(rq().status==='requested')await act(sb.from('recommendation_requests').update({status:'drafting'}).eq('id',id))}
@@ -303,9 +310,64 @@ return `<div class="subbar" role="tablist" aria-label="Sections">${items.map(i=>
 
 function ini(n){return n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}
 
-function openCV(){const u=user(),vs=verified(me).filter(a=>a.shared!==false||true);
-const w=window.open('','_blank');if(!w){say('Allow pop-ups to open your CV');return}
-w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(u.name)} CV</title><body style="font:16px/1.5 system-ui,Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem"><h1 style="margin:0">${esc(u.name)}</h1><p>BSc Software Engineering, Credify · Student ID ${esc(u.login)}${u.phone?' · '+esc(u.phone):''}${u.backup?' · '+esc(u.backup):''}</p><h2>Verified achievements</h2><ul>${vs.map(a=>`<li><b>${esc(a.title)}</b> (${esc(a.cat)}, ${fmt(a.date)}). Verified by ${esc(a.by)}</li>`).join('')||'<li>None yet</li>'}</ul><h2>Skills</h2><ul>${S.skills.map(x=>`<li>${esc(x.name)} (${x.kind}${x.level?', '+x.level:''})</li>`).join('')||'<li>None listed</li>'}</ul><p><button onclick="print()">Print or save as PDF</button></p>`);w.document.close()}
+function openCV(){
+if(!window.jspdf){say('The PDF tool didn’t load. Check your connection and reload.');return}
+const u=user(),vs=verified(me),layout=cvTemplate,theme=cvTheme;
+const templates={modern:{font:'helvetica',size:10.5,margin:52,line:15},classic:{font:'times',size:11,margin:62,line:17},compact:{font:'helvetica',size:9.5,margin:42,line:12},executive:{font:'helvetica',size:10.5,margin:54,line:15},sidebar:{font:'helvetica',size:10,margin:42,line:14},academic:{font:'times',size:11,margin:62,line:17}};
+const accent=cvThemes.find(x=>x[0]===theme)?.[3]||cvThemes[0][3];
+const style=templates[layout]||templates.modern,{jsPDF}=window.jspdf,d=new jsPDF({unit:'pt',format:'a4'});
+const W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight(),m=style.margin,isSidebar=layout==='sidebar',railWidth=isSidebar?100:0,contentX=m+railWidth,contentWidth=W-contentX-m,bottom=H-m;
+let y=m;
+const drawSidebar=()=>{if(!isSidebar)return;d.setFillColor(...accent);d.rect(0,0,railWidth,H,'F');d.setFont('helvetica','bold');d.setFontSize(18);d.setTextColor(255,255,255);d.text(ini(u.name),railWidth/2,48,{align:'center'});d.setFont('helvetica','normal');d.setFontSize(7.5);const lines=d.splitTextToSize(contact,railWidth-24);let sy=78;for(const lineText of lines){d.text(lineText,12,sy);sy+=10}};
+const page=()=>{d.addPage();drawSidebar();y=m};
+const ensure=height=>{if(y+height>bottom)page()};
+const write=(text,{x=contentX,width=contentWidth,size=style.size,line=style.line,color=[35,43,58],font=style.font,bold=false}={})=>{
+d.setFont(font,bold?'bold':'normal');d.setFontSize(size);d.setTextColor(...color);
+const lines=d.splitTextToSize(String(text??''),width);
+for(const lineText of lines){ensure(line);d.text(lineText,x,y);y+=line}
+};
+const section=title=>{
+ensure(style.line*2.5);y+=style.line*.6;d.setFont(style.font,'bold');d.setFontSize(style.size+2);d.setTextColor(...accent);d.text(title,contentX,y);
+y+=style.line*.5;d.setDrawColor(...accent);d.setLineWidth(.8);d.line(contentX,y,contentX+contentWidth,y);y+=style.line*.8;
+};
+const contact=[`Student ID ${u.login}`,u.phone&&`Phone ${u.phone}`,u.backup&&u.backup].filter(Boolean).join('  ·  ');
+drawSidebar();
+if(layout==='modern'){
+d.setTextColor(255,255,255);d.setFont('helvetica','bold');d.setFontSize(25);
+const titleLines=d.splitTextToSize(u.name,contentWidth),titleY=38,titleLine=30,subtitleY=titleY+titleLines.length*titleLine+5;
+d.setFont('helvetica','normal');d.setFontSize(11);
+const subtitleLines=d.splitTextToSize('BSc Software Engineering · Credify',contentWidth),contactY=subtitleY+subtitleLines.length*15+4;
+d.setFontSize(9.5);const contactLines=d.splitTextToSize(contact,contentWidth),headerHeight=Math.max(132,contactY+contactLines.length*12+14);
+d.setFillColor(...accent);d.rect(0,0,W,headerHeight,'F');d.setFont('helvetica','bold');d.setFontSize(25);d.text(titleLines,m,titleY);
+d.setFont('helvetica','normal');d.setFontSize(11);d.text(subtitleLines,m,subtitleY);
+d.setFontSize(9.5);d.text(contactLines,m,contactY);y=headerHeight+18;
+}else if(layout==='executive'){
+d.setFillColor(...accent);d.rect(0,0,W,12,'F');d.setFont('helvetica','bold');d.setFontSize(8);d.setTextColor(...accent);d.text('PROFESSIONAL PROFILE',contentX,40);
+d.setFont('helvetica','bold');d.setFontSize(27);d.setTextColor(28,38,55);const titleLines=d.splitTextToSize(u.name,contentWidth);d.text(titleLines,contentX,72);
+y=72+titleLines.length*31;d.setFont('helvetica','normal');d.setFontSize(11);d.setTextColor(85,94,110);d.text('BSc Software Engineering · Credify',contentX,y);y+=18;
+write(contact,{size:9.5,line:12,color:[101,112,130]});y+=8;d.setDrawColor(...accent);d.setLineWidth(2);d.line(contentX,y,contentX+contentWidth,y);y+=14;
+}else if(layout==='sidebar'){
+d.setFont('helvetica','bold');d.setFontSize(23);d.setTextColor(28,38,55);const titleLines=d.splitTextToSize(u.name,contentWidth);d.text(titleLines,contentX,48);y=48+titleLines.length*27+4;
+d.setFont('helvetica','normal');d.setFontSize(11);d.setTextColor(85,94,110);d.text('BSc Software Engineering · Credify',contentX,y);y+=style.line;
+}else{
+d.setFont(layout==='academic'||layout==='classic'?'times':'helvetica','bold');const titleSize=layout==='classic'?24:layout==='academic'?23:20,titleLine=layout==='classic'?28:layout==='academic'?27:23,titleY=layout==='classic'?48:layout==='academic'?48:38;
+d.setFontSize(titleSize);d.setTextColor(28,38,55);const titleLines=d.splitTextToSize(u.name,contentWidth);d.text(titleLines,contentX,titleY,layout==='academic'?{align:'center',maxWidth:contentWidth}:{});
+d.setFont(layout==='classic'||layout==='academic'?'times':'helvetica','normal');d.setFontSize(style.size);d.setTextColor(85,94,110);
+const subtitleY=titleY+titleLines.length*titleLine+3;d.text('BSc Software Engineering · Credify',layout==='academic'?W/2:contentX,subtitleY,layout==='academic'?{align:'center'}:{});
+const contactY=subtitleY+style.line;d.setFontSize(style.size-1);const contactLines=d.splitTextToSize(contact,contentWidth);d.text(contactLines,layout==='academic'?W/2:contentX,contactY,layout==='academic'?{align:'center',maxWidth:contentWidth}:{});
+const ruleY=contactY+contactLines.length*style.line*.85+6;d.setDrawColor(...accent);d.setLineWidth(layout==='classic'?1.5:layout==='compact'?3:1);d.line(contentX,ruleY,contentX+contentWidth,ruleY);if(layout==='academic')d.line(contentX,ruleY+3,contentX+contentWidth,ruleY+3);y=ruleY+style.line;
+}
+section('Verified achievements');
+if(vs.length){vs.forEach(a=>{
+const titleLines=d.splitTextToSize(a.title,contentWidth),meta=[a.cat,fmt(a.date),a.lvl&&`${a.lvl[0].toUpperCase()+a.lvl.slice(1)} recognition`,a.by&&`Verified by ${a.by}`].filter(Boolean).join(' · ');
+ensure(titleLines.length*style.line+style.line*1.7);d.setFont(style.font,'bold');d.setFontSize(style.size);d.setTextColor(35,43,58);d.text(titleLines,contentX,y);y+=titleLines.length*style.line;
+write(meta,{size:style.size-1,line:style.line*.9,color:[101,112,130]});y+=style.line*.25;
+})}else write('No verified achievements yet.',{color:[101,112,130]});
+section('Skills');
+if(S.skills.length){S.skills.forEach(x=>write(`${x.name} · ${x.kind}${x.level?' · '+x.level:''}`,{line:style.line} ))}else write('No skills listed yet.',{color:[101,112,130]});
+const pages=d.getNumberOfPages();for(let i=1;i<=pages;i++){d.setPage(i);d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(130,139,153);d.text(`Credify · ${u.name} · ${i} / ${pages}`,contentX,H-22)}
+d.save((u.name+' - Credify CV').replace(/[^\w .-]/g,'')+'.pdf')
+}
 
 function letterPDF(id){const r=S.reqs.find(x=>x.id===id),{jsPDF}=window.jspdf,d=new jsPDF({unit:'pt',format:'a4'});
 const W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight(),m=64;let y=m;
